@@ -568,13 +568,10 @@ func (l *PurchaseCheckoutLogic) upayProPayment(config *payment.Payment, info *or
 	}
 	client.SetNotifyURL(notifyUrl)
 
-	// Convert order amount to USD using current exchange rate
+	// Convert order amount from cents to USDT
 	// UPayPro expects amount in USDT (pegged 1:1 with USD)
-	amount, err := l.queryExchangeRate("USD", info.Amount)
-	if err != nil {
-		l.Errorw("[PurchaseCheckout] queryExchangeRate error", logger.Field("error", err.Error()))
-		return "", errors.Wrapf(xerr.NewErrCode(xerr.ERROR), "queryExchangeRate error: %s", err.Error())
-	}
+	// System stores amount in cents, so divide by 100
+	amount := float64(info.Amount) / 100.0
 
 	// Create payment order
 	result, err := client.CreateOrder(upaypro.Order{
