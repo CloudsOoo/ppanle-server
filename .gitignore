@@ -17,3 +17,4 @@ package.json
 /bin
 /deploy
 ppanel-server-latest.tar.gz
+release-*/
