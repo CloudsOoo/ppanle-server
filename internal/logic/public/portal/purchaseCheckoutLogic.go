@@ -25,6 +25,7 @@ import (
 	"github.com/perfect-panel/server/pkg/payment/alipay"
 	"github.com/perfect-panel/server/pkg/payment/epay"
 	"github.com/perfect-panel/server/pkg/payment/stripe"
+	"github.com/perfect-panel/server/pkg/payment/upaypro"
 	"github.com/perfect-panel/server/pkg/tool"
 	"github.com/perfect-panel/server/pkg/xerr"
 	"github.com/pkg/errors"
@@ -111,6 +112,17 @@ func (l *PurchaseCheckoutLogic) PurchaseCheckout(req *types.CheckoutOrderRequest
 		url, err := l.CryptoSaaSPayment(paymentConfig, orderInfo, req.ReturnUrl)
 		if err != nil {
 			return nil, errors.Wrapf(xerr.NewErrCode(xerr.ERROR), "epayPayment error: %v", err.Error())
+		}
+		resp = &types.CheckoutOrderResponse{
+			CheckoutUrl: url,
+			Type:        "url", // Client should redirect to URL
+		}
+
+	case paymentPlatform.UPayPro:
+		// Process UPayPro payment - generates payment URL for redirect
+		url, err := l.upayProPayment(paymentConfig, orderInfo, req.ReturnUrl)
+		if err != nil {
+			return nil, errors.Wrapf(xerr.NewErrCode(xerr.ERROR), "upayProPayment error: %v", err.Error())
 		}
 		resp = &types.CheckoutOrderResponse{
 			CheckoutUrl: url,
@@ -528,4 +540,56 @@ activation:
 		logger.Field("orderNo", o.OrderNo),
 		logger.Field("userId", u.Id))
 	return nil
+}
+
+// upayProPayment processes UPayPro payment by generating a payment URL for redirect
+// It creates a cryptocurrency payment order using the configured payment type (USDT-TRC20, etc.)
+func (l *PurchaseCheckoutLogic) upayProPayment(config *payment.Payment, info *order.Order, returnUrl string) (string, error) {
+	// Parse UPayPro configuration from payment settings
+	upayProConfig := &payment.UPayProConfig{}
+	if err := upayProConfig.Unmarshal([]byte(config.Config)); err != nil {
+		l.Errorw("[PurchaseCheckout] Unmarshal UPayPro config error", logger.Field("error", err.Error()))
+		return "", errors.Wrapf(xerr.NewErrCode(xerr.ERROR), "Unmarshal error: %s", err.Error())
+	}
+
+	// Initialize UPayPro client with configuration
+	client := upaypro.NewClient(upayProConfig.BaseURL, upayProConfig.SecretKey, upayProConfig.Type)
+
+	// Build notification URL for payment status callbacks
+	notifyUrl := ""
+	if config.Domain != "" {
+		notifyUrl = config.Domain + "/v1/notify/" + config.Platform + "/" + config.Token
+	} else {
+		host, ok := l.ctx.Value(constant.CtxKeyRequestHost).(string)
+		if !ok {
+			host = l.svcCtx.Config.Host
+		}
+		notifyUrl = "https://" + host + "/v1/notify/" + config.Platform + "/" + config.Token
+	}
+	client.SetNotifyURL(notifyUrl)
+
+	// Convert order amount from cents to USDT
+	// UPayPro expects amount in USDT, so we convert cents to dollars
+	amount := float64(info.Amount) / 100.0
+
+	// Create payment order
+	result, err := client.CreateOrder(upaypro.Order{
+		OrderNo:     info.OrderNo,
+		Amount:      amount,
+		RedirectURL: returnUrl,
+	})
+	if err != nil {
+		l.Errorw("[PurchaseCheckout] Create UPayPro order error", logger.Field("error", err.Error()))
+		return "", errors.Wrapf(xerr.NewErrCode(xerr.ERROR), "CreateOrder error: %s", err.Error())
+	}
+
+	// Save trade ID to order for tracking
+	info.TradeNo = result.Data.TradeID
+	err = l.svcCtx.OrderModel.Update(l.ctx, info)
+	if err != nil {
+		l.Errorw("[PurchaseCheckout] Update order error", logger.Field("error", err.Error()))
+		return "", errors.Wrapf(xerr.NewErrCode(xerr.DatabaseQueryError), "Update error: %s", err.Error())
+	}
+
+	return result.Data.PayURL, nil
 }

@@ -39,6 +39,19 @@ func PaymentNotifyHandler(svcCtx *svc.ServiceContext) func(c *gin.Context) {
 				return
 			}
 			c.String(http.StatusOK, "%s", "success")
+		case payment.UPayPro:
+			req := &types.UPayProNotifyRequest{}
+			if err := c.ShouldBind(req); err != nil {
+				result.HttpResult(c, nil, err)
+				return
+			}
+			l := notify.NewUPayProNotifyLogic(c, svcCtx)
+			if err := l.UPayProNotify(req); err != nil {
+				logger.WithContext(c.Request.Context()).Errorf("UPayProNotify failed: %v", err.Error())
+				c.String(http.StatusBadRequest, err.Error())
+				return
+			}
+			c.String(http.StatusOK, "%s", "success")
 		case payment.Stripe:
 			l := notify.NewStripeNotifyLogic(c.Request.Context(), svcCtx)
 			if err := l.StripeNotify(c.Request, c.Writer); err != nil {
