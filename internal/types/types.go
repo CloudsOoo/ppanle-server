@@ -564,6 +564,16 @@ type EPayNotifyRequest struct {
 	SignType    string `json:"sign_type"    form:"sign_type"`
 }
 
+type UPayProNotifyRequest struct {
+	TradeID   string  `json:"trade_id"  form:"trade_id"`
+	OrderID   string  `json:"order_id"  form:"order_id"`
+	Amount    float64 `json:"amount"    form:"amount"`
+	Status    string  `json:"status"    form:"status"`
+	PayTime   string  `json:"pay_time"  form:"pay_time"`
+	TxHash    string  `json:"tx_hash"   form:"tx_hash"`
+	Signature string  `json:"signature" form:"signature"`
+}
+
 type EmailAuthticateConfig struct {
 	Enable             bool   `json:"enable"`
 	EnableVerify       bool   `json:"enable_verify"`

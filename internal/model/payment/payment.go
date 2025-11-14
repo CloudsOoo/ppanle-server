@@ -127,3 +127,24 @@ func (l *CryptoSaaSConfig) Unmarshal(data []byte) error {
 	aux := (*Alias)(l)
 	return json.Unmarshal(data, &aux)
 }
+
+type UPayProConfig struct {
+	BaseURL   string `json:"base_url"`
+	SecretKey string `json:"secret_key"`
+	Type      string `json:"type"`
+}
+
+func (l *UPayProConfig) Marshal() ([]byte, error) {
+	type Alias UPayProConfig
+	return json.Marshal(&struct {
+		*Alias
+	}{
+		Alias: (*Alias)(l),
+	})
+}
+
+func (l *UPayProConfig) Unmarshal(data []byte) error {
+	type Alias UPayProConfig
+	aux := (*Alias)(l)
+	return json.Unmarshal(data, &aux)
+}

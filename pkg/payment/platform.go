@@ -5,13 +5,13 @@ import "github.com/perfect-panel/server/internal/types"
 type Platform int
 
 const (
-    UNSUPPORTED Platform = iota
-    Stripe
-    AlipayF2F
-    EPay
-    CryptoSaaS
-    Balance
-    UPayPro    
+	UNSUPPORTED Platform = iota
+	Stripe
+	AlipayF2F
+	EPay
+	CryptoSaaS
+	Balance
+	UPayPro
 )
 
 var platformNames = map[string]Platform{
@@ -20,7 +20,7 @@ var platformNames = map[string]Platform{
 	"AlipayF2F":   AlipayF2F,
 	"EPay":        EPay,
 	"balance":     Balance,
-	"UPayPro":     UPayPro, 
+	"UPayPro":     UPayPro,
 	"unsupported": UNSUPPORTED,
 }
 
@@ -82,13 +82,13 @@ func GetSupportedPlatforms() []types.PlatformInfo {
 				"secret_key": "Secret Key",
 			},
 		},
-		// 新增 UPayPro 配置
 		{
 			Platform:    UPayPro.String(),
 			PlatformUrl: "https://github.com/wangegou/UPAY_PRO",
-    		PlatformFieldDescription: map[string]string{
+			PlatformFieldDescription: map[string]string{
 				"base_url":   "应用地址 (例如: http://your-domain:8090)",
-        		"secret_key": "系统密钥 (从 UPAY_PRO 后台获取)",
+				"secret_key": "系统密钥 (从 UPAY_PRO 后台获取)",
+				"type":       "支付类型 (USDT-TRC20/USDT-ERC20/USDT-Polygon/USDT-BSC/USDT-ArbitrumOne/USDC-ERC20/USDC-Polygon/USDC-BSC/USDC-ArbitrumOne/TRX)",
 			},
 		},
 	}
