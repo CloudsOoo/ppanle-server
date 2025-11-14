@@ -95,8 +95,12 @@ func (c *Client) CreateOrder(order Order) (*CreateOrderResponse, error) {
 		return nil, fmt.Errorf("marshal request failed: %w", err)
 	}
 
+	url := c.config.BaseURL + "/api/create_order"
+	fmt.Printf("[UPayPro] Sending request to: %s\n", url)
+	fmt.Printf("[UPayPro] Request body: %s\n", string(body))
+
 	// 发送 HTTP 请求
-	httpReq, err := http.NewRequest("POST", c.config.BaseURL+"/api/create_order", strings.NewReader(string(body)))
+	httpReq, err := http.NewRequest("POST", url, strings.NewReader(string(body)))
 	if err != nil {
 		return nil, fmt.Errorf("create request failed: %w", err)
 	}
@@ -105,9 +109,12 @@ func (c *Client) CreateOrder(order Order) (*CreateOrderResponse, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(httpReq)
 	if err != nil {
+		fmt.Printf("[UPayPro] HTTP request error: %v\n", err)
 		return nil, fmt.Errorf("http request failed: %w", err)
 	}
 	defer resp.Body.Close()
+
+	fmt.Printf("[UPayPro] Response status: %s\n", resp.Status)
 
 	// 读取响应
 	respBody, err := io.ReadAll(resp.Body)
@@ -115,16 +122,21 @@ func (c *Client) CreateOrder(order Order) (*CreateOrderResponse, error) {
 		return nil, fmt.Errorf("read response failed: %w", err)
 	}
 
+	fmt.Printf("[UPayPro] Response body: %s\n", string(respBody))
+
 	// 解析响应
 	var result CreateOrderResponse
 	if err := json.Unmarshal(respBody, &result); err != nil {
+		fmt.Printf("[UPayPro] Failed to unmarshal response: %v\n", err)
 		return nil, fmt.Errorf("unmarshal response failed: %w", err)
 	}
 
 	if result.Code != 200 {
+		fmt.Printf("[UPayPro] API returned error code: %d, message: %s\n", result.Code, result.Message)
 		return nil, fmt.Errorf("create order failed: %s", result.Message)
 	}
 
+	fmt.Printf("[UPayPro] Order created successfully, PayURL: %s\n", result.Data.PayURL)
 	return &result, nil
 }
 
