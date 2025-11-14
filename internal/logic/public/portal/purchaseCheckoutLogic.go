@@ -545,12 +545,21 @@ activation:
 // upayProPayment processes UPayPro payment by generating a payment URL for redirect
 // It creates a cryptocurrency payment order using the configured payment type (USDT-TRC20, etc.)
 func (l *PurchaseCheckoutLogic) upayProPayment(config *payment.Payment, info *order.Order, returnUrl string) (string, error) {
+	l.Infow("[UPayPro] Starting payment process",
+		logger.Field("orderNo", info.OrderNo),
+		logger.Field("amount", info.Amount),
+		logger.Field("returnUrl", returnUrl))
+
 	// Parse UPayPro configuration from payment settings
 	upayProConfig := &payment.UPayProConfig{}
 	if err := upayProConfig.Unmarshal([]byte(config.Config)); err != nil {
 		l.Errorw("[PurchaseCheckout] Unmarshal UPayPro config error", logger.Field("error", err.Error()))
 		return "", errors.Wrapf(xerr.NewErrCode(xerr.ERROR), "Unmarshal error: %s", err.Error())
 	}
+
+	l.Infow("[UPayPro] Config parsed successfully",
+		logger.Field("baseURL", upayProConfig.BaseURL),
+		logger.Field("type", upayProConfig.Type))
 
 	// Initialize UPayPro client with configuration
 	client := upaypro.NewClient(upayProConfig.BaseURL, upayProConfig.SecretKey, upayProConfig.Type)
@@ -568,10 +577,17 @@ func (l *PurchaseCheckoutLogic) upayProPayment(config *payment.Payment, info *or
 	}
 	client.SetNotifyURL(notifyUrl)
 
+	l.Infow("[UPayPro] Notification URL set", logger.Field("notifyUrl", notifyUrl))
+
 	// Convert order amount from cents to USDT
 	// UPayPro expects amount in USDT (pegged 1:1 with USD)
 	// System stores amount in cents, so divide by 100
 	amount := float64(info.Amount) / 100.0
+
+	l.Infow("[UPayPro] Creating order",
+		logger.Field("orderNo", info.OrderNo),
+		logger.Field("amount", amount),
+		logger.Field("redirectURL", returnUrl))
 
 	// Create payment order
 	result, err := client.CreateOrder(upaypro.Order{
@@ -580,17 +596,24 @@ func (l *PurchaseCheckoutLogic) upayProPayment(config *payment.Payment, info *or
 		RedirectURL: returnUrl,
 	})
 	if err != nil {
-		l.Errorw("[PurchaseCheckout] Create UPayPro order error", logger.Field("error", err.Error()))
+		l.Errorw("[UPayPro] Create order failed", logger.Field("error", err.Error()))
 		return "", errors.Wrapf(xerr.NewErrCode(xerr.ERROR), "CreateOrder error: %s", err.Error())
 	}
+
+	l.Infow("[UPayPro] Order created successfully",
+		logger.Field("tradeID", result.Data.TradeID),
+		logger.Field("payURL", result.Data.PayURL),
+		logger.Field("amount", result.Data.Amount),
+		logger.Field("address", result.Data.Address))
 
 	// Save trade ID to order for tracking
 	info.TradeNo = result.Data.TradeID
 	err = l.svcCtx.OrderModel.Update(l.ctx, info)
 	if err != nil {
-		l.Errorw("[PurchaseCheckout] Update order error", logger.Field("error", err.Error()))
+		l.Errorw("[UPayPro] Update order error", logger.Field("error", err.Error()))
 		return "", errors.Wrapf(xerr.NewErrCode(xerr.DatabaseQueryError), "Update error: %s", err.Error())
 	}
 
+	l.Infow("[UPayPro] Payment URL ready", logger.Field("payURL", result.Data.PayURL))
 	return result.Data.PayURL, nil
 }
